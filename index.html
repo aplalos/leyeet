@@ -13,7 +13,8 @@
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
+            background: rgb(246,155,129);
+            background: radial-gradient(circle, rgba(246,155,129,1) 0%, rgba(6,6,37,1) 68%);
             color: #ffffff;
             overflow: hidden;
             height: 100vh;
@@ -45,7 +46,7 @@
         }
 
         .controls {
-  z-index: 3;
+            z-index: 3;
             position: absolute;
             bottom: 20px;
             left: 0;
@@ -164,6 +165,9 @@
     <script>
         // YouTube playlist - add your video IDs here
         const playlist = [
+		"5v3Zq84YQ6I",
+		"7263YsyaDBc",
+		"TwvA2a4VA7w",
             "ZsaZPtSRxd8", // Example video 1
             "3p1AQAClQt0", // Example video 2
             "ZsaZPtSRxd8", // Example video 3
@@ -269,8 +273,8 @@
             const videoDescription = document.getElementById('video-description');
             
             // Placeholder - replace with actual video information
-            videoTitle.textContent = `Video ${currentVideoIndex + 1} of ${playlist.length}`;
-            videoDescription.textContent = 'This is a curated video experience.';
+            videoTitle.textContent = `Παρακολουθείτε το ${currentVideoIndex + 1} από τα ${playlist.length} βίντεα`;
+            videoDescription.textContent = 'Καλωσήρθατε στην πχοιοτική τηλεόραση';
         }
 
         function toggleFullscreen() {
