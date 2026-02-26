@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ΛΕΓΙΤ webTV (YouTube + Dailymotion)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Open Sans', sans-serif;
+            background: rgb(246,155,129);
+            background: radial-gradient(circle, rgba(246,155,129,1) 0%, rgba(6,6,37,1) 68%);
+            color: #ffffff;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background 0.5s ease;
+        }
+    .newsBarContainer {
+        font-family:'Open Sans', sans-serif;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 5%;
+        background:none;
+        overflow:visible;
+        z-index: 2;
+    }
+    @keyframes scrollNews {
+            0% { transform: translateX(100%); }
+            100% { transform: translateX(-100%); }
+             }
+    #newsScroller {
+        font-family:'Open Sans', sans-serif;
+        display: flex; 
+        animation: scrollNews 20s linear infinite; 
+        white-space: nowrap;
+        animation-delay: 0s;
+        animation-play-state: paused;
+            }
+    .player-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1;
+        }
+
+        .youtube-player {
+            width: 100%;
+            height: 80vh;
+            max-width: 1200px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            transition: all 0.5s ease;
+            background: #000; /* fallback while loading */
+        }
+
+        .controls {
+            z-index: 3;
+            position: absolute;
+            bottom: 20px;
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+
+        .player-container:hover .controls {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        button {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            backface-visibility: hidden;
+        }
+
+        button:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .branding {
+            display: flex;
+            font-size: 2rem;
+            position: absolute;
+            top: 30px;
+            left: 80px;
+            opacity: 0.7;
+            transition: opacity 0.7s ease;
+        }
+
+        
+        .transition-overlay {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: rgb(108,57,43);
+            background: radial-gradient(circle, rgba(108,57,43,1) 0%, rgba(6,6,37,1) 63%); 
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            z-index: 2;
+        }
+
+        .video-info {
+            position: absolute;
+            bottom: 100px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .player-container:hover .video-info {
+            opacity: 1;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-bottom: 5px;
+            color: #ffffff;
+        }
+
+        p {
+            color: #aaaaaa;
+        }
+
+        @media (max-width: 768px) {
+            .youtube-player {
+                width: 95%;
+                height: 70vh;
+            }
+            
+            h2 {
+                font-size: 1.2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="newsBarContainer"><div id="newsScroller"></div></div>
+    <div class="player-container">
+        <div class="branding">
+            <h3>ΛΕΓΙΤ webTV</h3>
+        </div>
+        
+        <div class="transition-overlay"></div>
+        
+        <div class="youtube-player" id="player"></div>
+        
+        <div class="video-info">
+            <h2 id="video-title">Loadin...</h2>
+            <p id="video-description"> μαλλον υπάρχει κάποιο πρόβλημα με το server</p>
+        </div>
+        
+        <div class="controls">
+            <button id="prev-btn">Previous</button>
+            <button id="play-pause-btn">Pause</button>
+	        <button id="mute-btn">UnMute</button>
+            <button id="next-btn">Next</button>
+            <button id="fullscreen-btn">Fullscreen</button>
+        </div>
+    </div>
+
+    <!-- Scripts & logic -->
+    <!-- Dailymotion API (loaded asynchronously) -->
+    <script src="https://api.dmcdn.net/all.js" async onload="onDailymotionAPIReady()"></script>
+    <!-- YouTube API will be loaded conditionally later -->
+    <script>
+    // ==================== CONFIGURATION ====================
+    // Mixed playlist: each item has type 'youtube' or 'dailymotion' and the video ID
+    const playlist = [
+        { type: 'youtube', id: '5v3Zq84YQ6I' },      // star
+        { type: 'youtube', id: '11qXS8bXdsc' },      // ellinofreneia
+        { type: 'youtube', id: '7263YsyaDBc' },      // rewind
+        { type: 'dailymotion', id: 'x6cxefe' },      // example dailymotion (music / short – replace with your own)
+        { type: 'youtube', id: 'PelzSnmwQ-M' },      // thledioikisi
+        { type: 'youtube', id: 'lmVAb_7vzYA' },      // kanadas
+        { type: 'youtube', id: 'w7k5xPIpuN0' },      // deluluvoultpsi
+        { type: 'youtube', id: 'wyVTQdW3d_Q' },      // evangian86
+        { type: 'youtube', id: 'RVWadttGEPM' },      // akoloutheipoldiaf
+        { type: 'youtube', id: '6aM2IvVudxM' },      // kyriako
+        { type: 'youtube', id: 'PyLNiOkzyRU' },      // intermedio
+        { type: 'youtube', id: 'FGWICvtZn74' },      // dogscatscute
+        { type: 'youtube', id: 'QWs56m8QniI' },      // sagapwmagapas
+        { type: 'youtube', id: '0URH98uvG7w' }       // rwmiosyni
+    ];
+
+    // RSS feed (unchanged)
+    const rssFeedUrl = 'https://corsproxy.io/' + encodeURIComponent('https://www.news.gr/rss.ashx');
+    const newsScroller = document.getElementById('newsScroller');
+
+    // ==================== GLOBAL STATE ====================
+    let currentVideoIndex = 0;
+    let currentPlayerInstance = null;      // holds YT.Player or DM.player
+    let currentPlayerType = null;          // 'youtube' or 'dailymotion'
+    let isFullscreen = false;
+    let isMuted = true;                    // start muted (matches playerVars)
+    let isPlaying = true;                  // assume autoplay after load
+
+    // API readiness flags
+    let ytReady = false;
+    let dmReady = false;
+    let pendingVideo = null;               // { type, id } to load when API becomes ready
+
+    // DOM elements
+    const videoTitleEl = document.getElementById('video-title');
+    const videoDescEl = document.getElementById('video-description');
+    const muteBtn = document.getElementById('mute-btn');
+    const playPauseBtn = document.getElementById('play-pause-btn');
+    const overlay = document.querySelector('.transition-overlay');
+
+    // ==================== RSS FETCH (unchanged) ====================
+    document.addEventListener('DOMContentLoaded', function() {
+        fetch(rssFeedUrl)
+            .then(response => response.text())
+            .then(xmlText => {
+                const parser = new DOMParser();
+                const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+                const items = xmlDoc.querySelectorAll('item');
+                if (items.length === 0) {
+                    newsScroller.innerHTML = '<div style="padding: 10px;">No news items found in RSS feed.</div>';
+                    return;
+                }
+                let newsItemsHTML = '';
+                let itemCount = 0;
+                items.forEach(item => {
+                    if (itemCount < 10) {
+                        const titleElement = item.querySelector('title');
+                        const linkElement = item.querySelector('link');
+                        if (titleElement && linkElement) {
+                            const title = titleElement.textContent;
+                            const link = linkElement.textContent;
+                            newsItemsHTML += `
+                                <div style="padding: 10px; margin-right: 20px;">
+                                    <a href="${link}" target="_blank" style="color:#f6de81; text-decoration: none; font-weight: bold;">${title}</a>
+                                </div>
+                            `;
+                            itemCount++;
+                        }
+                    }
+                });
+                if (newsItemsHTML === '') {
+                    newsScroller.innerHTML = '<div style="padding: 10px;">Could not extract news titles.</div>';
+                } else {
+                    newsScroller.innerHTML = newsItemsHTML;
+                    setTimeout(() => { newsScroller.style.animationPlayState = 'running'; }, 100);
+                }
+            })
+            .catch(error => {
+                console.error('RSS error:', error);
+                newsScroller.innerHTML = `<div style="padding: 10px; color: red;">Error loading news feed</div>`;
+            });
+    });
+
+    // ==================== API READY CALLBACKS ====================
+    function onYouTubeIframeAPIReady() {
+        ytReady = true;
+        console.log('YouTube API ready');
+        if (pendingVideo && pendingVideo.type === 'youtube') {
+            loadVideoByObject(pendingVideo);
+            pendingVideo = null;
+        } else if (playlist[0].type === 'youtube' && !currentPlayerInstance) {
+            // initial load if first is youtube
+            loadVideoAtIndex(0);
+        }
+    }
+
+    function onDailymotionAPIReady() {
+        dmReady = true;
+        console.log('Dailymotion API ready');
+        if (pendingVideo && pendingVideo.type === 'dailymotion') {
+            loadVideoByObject(pendingVideo);
+            pendingVideo = null;
+        } else if (playlist[0].type === 'dailymotion' && !currentPlayerInstance) {
+            loadVideoAtIndex(0);
+        }
+    }
+
+    // ==================== LOAD VIDEO BY INDEX ====================
+    function loadVideoAtIndex(index) {
+        const video = playlist[index];
+        if (!video) return;
+        loadVideoByObject(video);
+    }
+
+    function loadVideoByObject(video) {
+        // Check if required API is ready
+        if (video.type === 'youtube' && !ytReady) {
+            console.log('YouTube not ready, pending');
+            pendingVideo = video;
+            return;
+        }
+        if (video.type === 'dailymotion' && !dmReady) {
+            console.log('Dailymotion not ready, pending');
+            pendingVideo = video;
+            return;
+        }
+
+        // Destroy existing player gracefully
+        if (currentPlayerInstance) {
+            try {
+                if (currentPlayerType === 'youtube') {
+                    currentPlayerInstance.destroy();
+                } else if (currentPlayerType === 'dailymotion') {
+                    // Dailymotion destroy method removes iframe
+                    currentPlayerInstance.destroy();
+                }
+            } catch (e) { console.warn('destroy error', e); }
+            currentPlayerInstance = null;
+        }
+
+        // Clear container (just to be safe)
+        const container = document.getElementById('player');
+        container.innerHTML = ''; 
+
+        // Create new player based on type
+        if (video.type === 'youtube') {
+            currentPlayerType = 'youtube';
+            currentPlayerInstance = new YT.Player('player', {
+                videoId: video.id,
+                height: '100%',
+                width: '100%',
+                playerVars: {
+                    autoplay: 1,
+                    mute: isMuted ? 1 : 0,
+                    modestbranding: 1,
+                    rel: 0,
+                    controls: 0,
+                    disablekb: 1,
+                    iv_load_policy: 3,
+                    showinfo: 0
+                },
+                events: {
+                    onReady: onYouTubePlayerReady,
+                    onStateChange: onYouTubePlayerStateChange
+                }
+            });
+        } else if (video.type === 'dailymotion') {
+            currentPlayerType = 'dailymotion';
+            currentPlayerInstance = new DM.player('player', {
+                video: video.id,
+                height: '100%',
+                width: '100%',
+                params: {
+                    autoplay: 1,
+                    mute: isMuted ? 1 : 0,
+                    controls: false,
+                    'endscreen-enable': false
+                },
+                events: {
+                    apiready: onDailymotionPlayerReady,
+                    ended: onDailymotionPlayerEnded,
+                    play: () => { isPlaying = true; updatePlayPauseButton(); },
+                    pause: () => { isPlaying = false; updatePlayPauseButton(); }
+                }
+            });
+        }
+
+        // Update info text (generic)
+        updateVideoInfo(video);
+    }
+
+    // ==================== PLAYER EVENT HANDLERS ====================
+    function onYouTubePlayerReady(event) {
+        console.log('YT player ready');
+        isPlaying = true;
+        updatePlayPauseButton();
+        // Ensure mute state consistency
+        if (isMuted) event.target.mute(); else event.target.unMute();
+    }
+
+    function onYouTubePlayerStateChange(event) {
+        if (event.data === YT.PlayerState.ENDED) {
+            // transition effect then next
+            overlay.style.opacity = '1';
+            setTimeout(() => {
+                playNextVideo();
+                setTimeout(() => { overlay.style.opacity = '0'; }, 500);
+            }, 800);
+        } else if (event.data === YT.PlayerState.PLAYING) {
+            isPlaying = true;
+            updatePlayPauseButton();
+        } else if (event.data === YT.PlayerState.PAUSED) {
+            isPlaying = false;
+            updatePlayPauseButton();
+        }
+    }
+
+    function onDailymotionPlayerReady(event) {
+        console.log('DM player ready');
+        isPlaying = true;
+        updatePlayPauseButton();
+        if (isMuted) currentPlayerInstance.setMute(true);
+    }
+
+    function onDailymotionPlayerEnded() {
+        overlay.style.opacity = '1';
+        setTimeout(() => {
+            playNextVideo();
+            setTimeout(() => { overlay.style.opacity = '0'; }, 500);
+        }, 800);
+    }
+
+    // ==================== UI UPDATE ====================
+    function updateVideoInfo(video) {
+        let platform = video.type === 'youtube' ? 'YouTube' : 'Dailymotion';
+        videoTitleEl.textContent = `[${platform}] ${currentVideoIndex+1}/${playlist.length}`;
+        videoDescEl.textContent = 'Καλωσήρθατε στην ποιοτική τηλεόραση';
+    }
+
+    function updatePlayPauseButton() {
+        playPauseBtn.textContent = isPlaying ? 'Pause' : 'Play';
+    }
+
+    // ==================== CONTROL FUNCTIONS ====================
+    function togglePlayPause() {
+        if (!currentPlayerInstance) return;
+        if (currentPlayerType === 'youtube') {
+            const state = currentPlayerInstance.getPlayerState();
+            if (state === YT.PlayerState.PLAYING) {
+                currentPlayerInstance.pauseVideo();
+            } else {
+                currentPlayerInstance.playVideo();
+            }
+        } else if (currentPlayerType === 'dailymotion') {
+            if (isPlaying) {
+                currentPlayerInstance.pause();
+            } else {
+                currentPlayerInstance.play();
+            }
+        }
+    }
+
+    function toggleMute() {
+        isMuted = !isMuted;
+        if (currentPlayerInstance) {
+            if (currentPlayerType === 'youtube') {
+                if (isMuted) currentPlayerInstance.mute();
+                else currentPlayerInstance.unMute();
+            } else if (currentPlayerType === 'dailymotion') {
+                currentPlayerInstance.setMute(isMuted);
+            }
+        }
+        muteBtn.textContent = isMuted ? 'Unmute' : 'Mute';
+    }
+
+    function playNextVideo() {
+        currentVideoIndex = (currentVideoIndex + 1) % playlist.length;
+        loadVideoAtIndex(currentVideoIndex);
+    }
+
+    function playPreviousVideo() {
+        currentVideoIndex = (currentVideoIndex - 1 + playlist.length) % playlist.length;
+        loadVideoAtIndex(currentVideoIndex);
+    }
+
+    function toggleFullscreen() {
+        if (!isFullscreen) {
+            const elem = document.documentElement;
+            if (elem.requestFullscreen) elem.requestFullscreen();
+            else if (elem.mozRequestFullScreen) elem.mozRequestFullScreen();
+            else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
+        } else {
+            if (document.exitFullscreen) document.exitFullscreen();
+            else if (document.mozCancelFullScreen) document.mozCancelFullScreen();
+            else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+        }
+        isFullscreen = !isFullscreen;
+        document.getElementById('fullscreen-btn').textContent = isFullscreen ? 'Exit Fullscreen' : 'Fullscreen';
+    }
+
+    // ==================== INIT: LOAD YT API, ATTACH LISTENERS ====================
+    (function loadYouTubeAPI() {
+        const tag = document.createElement('script');
+        tag.src = 'https://www.youtube.com/iframe_api';
+        const firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+    })();
+
+    // Attach button listeners after DOM ready
+    document.addEventListener('DOMContentLoaded', function() {
+        document.getElementById('prev-btn').addEventListener('click', playPreviousVideo);
+        document.getElementById('next-btn').addEventListener('click', playNextVideo);
+        document.getElementById('play-pause-btn').addEventListener('click', togglePlayPause);
+        document.getElementById('mute-btn').addEventListener('click', toggleMute);
+        document.getElementById('fullscreen-btn').addEventListener('click', toggleFullscreen);
+
+        // Initial video load will be attempted when APIs are ready.
+        // If APIs already ready (cached), they would have fired. For safety, try after a short delay.
+        setTimeout(() => {
+            if (!currentPlayerInstance) {
+                // fallback: try to load first video, which will pend if API not ready
+                loadVideoAtIndex(0);
+            }
+        }, 500);
+    });
+
+    // Additional safety: if first video is youtube but YT not ready, pending will work.
+    // For DM we have onload.
+
+    </script>
+</body>
+</html>
