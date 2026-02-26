@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ΛΕΓΙΤ webTV - Hybrid Edition</title>
+    <script src="https://api.dmcdn.net/all.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Open Sans', sans-serif;
+            background: radial-gradient(circle, rgba(246,155,129,1) 0%, rgba(6,6,37,1) 68%);
+            color: #ffffff;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Ticker Styling */
+        .newsBarContainer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 40px;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 10;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+        }
+
+        #newsScroller {
+            display: flex;
+            white-space: nowrap;
+            animation: scrollNews 25s linear infinite;
+            animation-play-state: paused;
+        }
+
+        @keyframes scrollNews {
+            0% { transform: translateX(100%); }
+            100% { transform: translateX(-100%); }
+        }
+
+        /* Player Containers */
+        .player-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* We use two divs and toggle visibility to keep the APIs happy */
+        #yt-player, #dm-player {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100%;
+            height: 80vh;
+            max-width: 1200px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        #dm-player { display: none; } /* Hidden by default */
+
+        /* Overlay Controls */
+        .controls {
+            z-index: 20;
+            position: absolute;
+            bottom: 30px;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .player-container:hover .controls { opacity: 1; }
+
+        button {
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 50px;
+            cursor: pointer;
+            backdrop-filter: blur(5px);
+        }
+
+        button:hover { background: rgba(255, 255, 255, 0.3); }
+
+        .branding {
+            position: absolute;
+            top: 60px;
+            left: 40px;
+            z-index: 15;
+            opacity: 0.6;
+        }
+
+        .video-info {
+            position: absolute;
+            bottom: 110px;
+            width: 100%;
+            text-align: center;
+            z-index: 15;
+            pointer-events: none;
+        }
+        
+        .error-msg { color: #ff5f5f; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div class="newsBarContainer">
+        <div id="newsScroller">Φόρτωση ειδήσεων...</div>
+    </div>
+
+    <div class="player-container">
+        <div class="branding"><h3>ΛΕΓΙΤ webTV</h3></div>
+        
+        <div id="yt-player"></div>
+        <div id="dm-player"></div>
+
+        <div class="video-info">
+            <h2 id="video-title">Περιμένετε...</h2>
+            <p id="video-status">Συντονισμός στο κανάλι</p>
+        </div>
+
+        <div class="controls">
+            <button onclick="changeVideo(-1)">Previous</button>
+            <button id="play-pause-btn" onclick="togglePlayPause()">Pause</button>
+            <button id="mute-btn" onclick="toggleMute()">Unmute</button>
+            <button onclick="changeVideo(1)">Next</button>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * CONFIGURATION & PLAYLIST
+         * type: 'yt' for YouTube, 'dm' for Dailymotion
+         */
+        const playlist = [
+            { id: "5v3Zq84YQ6I", type: "yt" },
+            { id: "x6cxefe", type: "dm" }, // Sample Dailymotion Video
+            { id: "11qXS8bXdsc", type: "yt" },
+            { id: "x8rj7v2", type: "dm" }  // Sample Dailymotion Video
+        ];
+
+        let currentIndex = 0;
+        let ytPlayer = null;
+        let dmPlayer = null;
+        let isMuted = true;
+
+        /**
+         * 1. NEWS TICKER LOGIC (CORS Friendly)
+         */
+        function initNews() {
+            const rssUrl = 'https://corsproxy.io/?' + encodeURIComponent('https://www.news.gr/rss.ashx');
+            fetch(rssUrl)
+                .then(r => r.text())
+                .then(str => {
+                    const xml = new window.DOMParser().parseFromString(str, "text/xml");
+                    const items = xml.querySelectorAll("item");
+                    let html = "";
+                    items.forEach((el, i) => {
+                        if(i < 10) html += `<span style="margin-right:50px; color:#f6de81;">● ${el.querySelector("title").innerHTML}</span>`;
+                    });
+                    document.getElementById('newsScroller').innerHTML = html + html; // Double for loop
+                    document.getElementById('newsScroller').style.animationPlayState = 'running';
+                })
+                .catch(err => {
+                    console.error("News Error:", err);
+                    document.getElementById('newsScroller').innerHTML = "Η ροή ειδήσεων δεν είναι διαθέσιμη προσωρινά.";
+                });
+        }
+
+        /**
+         * 2. YOUTUBE API INIT
+         */
+        function onYouTubeIframeAPIReady() {
+            ytPlayer = new YT.Player('yt-player', {
+                height: '100%', width: '100%',
+                videoId: playlist[currentIndex].type === 'yt' ? playlist[currentIndex].id : '',
+                playerVars: { autoplay: 1, mute: 1, controls: 0, rel: 0 },
+                events: { 
+                    'onReady': onPlayerReady, 
+                    'onStateChange': onYTStateChange,
+                    'onError': onYTError 
+                }
+            });
+        }
+
+        /**
+         * 3. DAILYMOTION API INIT
+         */
+        function initDM() {
+            dmPlayer = DM.player(document.getElementById('dm-player'), {
+                video: '',
+                width: '100%', height: '100%',
+                params: { autoplay: true, mute: true, controls: false }
+            });
+
+            dmPlayer.addEventListener('end', () => changeVideo(1));
+            dmPlayer.addEventListener('error', (e) => {
+                console.error("DM Error", e);
+                showStatus("Σφάλμα Dailymotion - Μετάβαση στο επόμενο...");
+                setTimeout(() => changeVideo(1), 3000);
+            });
+        }
+
+        /**
+         * 4. UNIFIED CONTROL LOGIC
+         */
+        function loadCurrentVideo() {
+            const item = playlist[currentIndex];
+            const ytEl = document.getElementById('yt-player');
+            const dmEl = document.getElementById('dm-player');
+
+            showStatus(`Παίζοντας ${currentIndex + 1} από ${playlist.length}`);
+
+            if (item.type === 'yt') {
+                // Show YT, Hide DM
+                dmEl.style.display = 'none';
+                ytEl.style.display = 'block';
+                if(dmPlayer) dmPlayer.pause();
+                
+                ytPlayer.loadVideoById(item.id);
+                if(isMuted) ytPlayer.mute(); else ytPlayer.unMute();
+            } 
+            else if (item.type === 'dm') {
+                // Show DM, Hide YT
+                ytEl.style.display = 'none';
+                dmEl.style.display = 'block';
+                ytPlayer.pauseVideo();
+
+                dmPlayer.load(item.id);
+                dmPlayer.setMuted(isMuted);
+            }
+        }
+
+        function togglePlayPause() {
+            const item = playlist[currentIndex];
+            const btn = document.getElementById('play-pause-btn');
+            
+            if (item.type === 'yt') {
+                const state = ytPlayer.getPlayerState();
+                if (state === 1) { ytPlayer.pauseVideo(); btn.innerText = "Play"; }
+                else { ytPlayer.playVideo(); btn.innerText = "Pause"; }
+            } else {
+                dmPlayer.togglePlay();
+                // DM toggle is async, we'd usually listen for event, but for simple UI:
+                btn.innerText = (btn.innerText === "Pause") ? "Play" : "Pause";
+            }
+        }
+
+        function toggleMute() {
+            isMuted = !isMuted;
+            const btn = document.getElementById('mute-btn');
+            btn.innerText = isMuted ? "Unmute" : "Mute";
+
+            if (ytPlayer) isMuted ? ytPlayer.mute() : ytPlayer.unMute();
+            if (dmPlayer) dmPlayer.setMuted(isMuted);
+        }
+
+        function changeVideo(direction) {
+            currentIndex = (currentIndex + direction + playlist.length) % playlist.length;
+            loadCurrentVideo();
+            document.getElementById('play-pause-btn').innerText = "Pause";
+        }
+
+        // Error Feedback
+        function showStatus(msg) {
+            document.getElementById('video-status').innerText = msg;
+        }
+
+        function onYTError(e) {
+            console.warn("YouTube Error Code:", e.data);
+            showStatus("Το βίντεο δεν είναι διαθέσιμο. Μετάβαση...");
+            setTimeout(() => changeVideo(1), 2000);
+        }
+
+        function onYTStateChange(e) {
+            if (e.data === YT.PlayerState.ENDED) changeVideo(1);
+        }
+
+        function onPlayerReady() {
+            initDM(); // Start DM after YT is ready to prevent race conditions
+            loadCurrentVideo(); 
+        }
+
+        // Bootstrap
+        window.onload = () => {
+            initNews();
+            // Load YT API Tag
+            const tag = document.createElement('script');
+            tag.src = "https://www.youtube.com/iframe_api";
+            document.head.appendChild(tag);
+        };
+    </script>
+</body>
+</html>
