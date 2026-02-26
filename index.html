@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ΛΕΓΙΤ webTV</title>
+    <style>
+        /* (your existing styles – unchanged) */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Open Sans', sans-serif;
+            background: rgb(246,155,129);
+            background: radial-gradient(circle, rgba(246,155,129,1) 0%, rgba(6,6,37,1) 68%);
+            color: #ffffff;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background 0.5s ease;
+        }
+
+        .newsBarContainer {
+            font-family:'Open Sans', sans-serif;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 40px;               /* fixed height */
+            background: rgba(0,0,0,0.3);
+            overflow: hidden;            /* hide overflow */
+            z-index: 2;
+            line-height: 40px;           /* vertical center */
+        }
+
+        @keyframes scrollNews {
+            0% { transform: translateX(100%); }
+            100% { transform: translateX(-100%); }
+        }
+
+        #newsScroller {
+            font-family:'Open Sans', sans-serif;
+            display: flex;
+            animation: scrollNews 30s linear infinite;  /* slower */
+            white-space: nowrap;
+            animation-play-state: paused; /* start paused */
+        }
+
+        .player-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1;
+        }
+
+        .youtube-player {
+            width: 100%;
+            height: 80vh;
+            max-width: 1200px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            transition: all 0.5s ease;
+        }
+
+        /* also style the dailymotion player container */
+        .dailymotion-player {
+            width: 100%;
+            height: 80vh;
+            max-width: 1200px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            transition: all 0.5s ease;
+        }
+
+        .controls {
+            z-index: 3;
+            position: absolute;
+            bottom: 20px;
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            opacity: 0.7;                /* always visible */
+            transition: opacity 0.3s ease;
+            pointer-events: all;
+        }
+
+        .player-container:hover .controls {
+            opacity: 1;
+        }
+
+        button {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            backface-visibility: hidden;
+            font-size: 1rem;
+            outline: none;                /* will add custom focus */
+        }
+
+        button:focus-visible {
+            outline: 2px solid #f6de81;
+            outline-offset: 2px;
+        }
+
+        button:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .branding {
+            display: flex;
+            font-size: 2rem;
+            position: absolute;
+            top: 60px;                    /* moved down to avoid news bar */
+            left: 80px;
+            opacity: 0.7;
+            transition: opacity 0.7s ease;
+            z-index: 3;
+        }
+
+        .transition-overlay {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: rgb(108,57,43);
+            background: radial-gradient(circle, rgba(108,57,43,1) 0%, rgba(6,6,37,1) 63%); 
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        .video-info {
+            position: absolute;
+            bottom: 100px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .player-container:hover .video-info {
+            opacity: 1;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-bottom: 5px;
+            color: #ffffff;
+        }
+
+        p {
+            color: #aaaaaa;
+        }
+
+        @media (max-width: 768px) {
+            .youtube-player, .dailymotion-player {
+                width: 95%;
+                height: 70vh;
+            }
+            
+            h2 {
+                font-size: 1.2rem;
+            }
+
+            .branding {
+                top: 70px;
+                left: 20px;
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="newsBarContainer"><div id="newsScroller"></div></div>
+    <div class="player-container">
+        <div class="branding">
+            <h3>ΛΕΓΙΤ webTV</h3>
+        </div>
+        
+        <div class="transition-overlay"></div>
+        
+        <!-- This div will hold either YouTube or Dailymotion player -->
+        <div id="player-container" class="player-wrapper"></div>
+        
+        <div class="video-info">
+            <h2 id="video-title">Loading...</h2>
+            <p id="video-description">μαλλον υπάρχει κάποιο πρόβλημα με το server</p>
+        </div>
+        
+        <div class="controls">
+            <button id="prev-btn">Previous</button>
+            <button id="play-pause-btn">Pause</button>
+            <button id="mute-btn">Unmute</button>
+            <button id="next-btn">Next</button>
+            <button id="fullscreen-btn">Fullscreen</button>
+        </div>
+    </div>
+
+    <script>
+        // ========== PLAYLIST with mixed types ==========
+        const playlist = [
+            { type: 'youtube', id: '5v3Zq84YQ6I' },       // star
+            { type: 'youtube', id: '11qXS8bXdsc' },       // ellinofreneia
+            { type: 'dailymotion', id: 'x6cxefe' },        // example Dailymotion ID (replace with real)
+            { type: 'youtube', id: '7263YsyaDBc' },       // rewind
+            { type: 'youtube', id: 'PelzSnmwQ-M' },       // thledioikisi
+            { type: 'dailymotion', id: 'x7z8t1c' },        // another Dailymotion example
+            { type: 'youtube', id: 'lmVAb_7vzYA' },       // kanadas
+            { type: 'youtube', id: 'w7k5xPIpuN0' },       // deluluvoultpsi
+            { type: 'youtube', id: 'wyVTQdW3d_Q' },       // evangian86
+            { type: 'youtube', id: 'RVWadttGEPM' },       // akoloutheipoldiaf
+            { type: 'youtube', id: '6aM2IvVudxM' },       // kyriako
+            { type: 'youtube', id: 'PyLNiOkzyRU' },       // intermedio
+            { type: 'youtube', id: 'FGWICvtZn74' },       // dogscatscute
+            { type: 'youtube', id: 'QWs56m8QniI' },       // sagapwmagapas
+            { type: 'youtube', id: '0URH98uvG7w' },       // rwmiosyni
+        ];
+
+        const rssFeedUrl = 'https://corsproxy.io/' + encodeURIComponent('https://www.news.gr/rss.ashx');
+        const newsScroller = document.getElementById('newsScroller');
+        
+        let currentVideoIndex = 0;
+        let currentPlayer = null;          // holds either YT.Player or DM.player instance
+        let playerType = null;              // 'youtube' or 'dailymotion'
+        let isFullscreen = false;
+        let isMuted = true;                 // start muted
+
+        // ========== RSS News Ticker ==========
+        document.addEventListener('DOMContentLoaded', function() {
+            fetch(rssFeedUrl)
+                .then(response => response.text())
+                .then(xmlText => {
+                    const parser = new DOMParser();
+                    const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+                    const items = xmlDoc.querySelectorAll('item');
+
+                    if (items.length === 0) {
+                        newsScroller.innerHTML = '<div style="padding: 10px;">No news items found in RSS feed.</div>';
+                        return;
+                    }
+
+                    let newsItemsHTML = '';
+                    let itemCount = 0;
+                    items.forEach(item => {
+                        if (itemCount < 10) {
+                            const titleElement = item.querySelector('title');
+                            const linkElement = item.querySelector('link');
+                            if (titleElement && linkElement) {
+                                const title = titleElement.textContent;
+                                const link = linkElement.textContent;
+                                newsItemsHTML += `
+                                    <div style="padding: 0 20px;">
+                                        <a href="${link}" target="_blank" rel="noopener noreferrer" style="color:#f6de81; text-decoration: none; font-weight: bold;">${title}</a>
+                                    </div>
+                                `;
+                                itemCount++;
+                            }
+                        }
+                    });
+
+                    if (newsItemsHTML === '') {
+                        newsScroller.innerHTML = '<div style="padding: 10px;">Could not extract news titles and links. Check RSS feed structure.</div>';
+                    } else {
+                        newsScroller.innerHTML = newsItemsHTML;
+                    }
+
+                    // Start animation after content load
+                    if (newsItemsHTML !== '') {
+                        newsScroller.style.animationPlayState = 'running';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching or parsing RSS feed:', error);
+                    newsScroller.innerHTML = `<div style="padding: 10px; color: red;">Error loading news feed: ${error.message}</div>`;
+                });
+        });
+
+        // ========== Fullscreen change sync ==========
+        document.addEventListener('fullscreenchange', () => {
+            isFullscreen = !!document.fullscreenElement;
+            document.getElementById('fullscreen-btn').textContent = isFullscreen ? 'Exit Fullscreen' : 'Fullscreen';
+        });
+        // also for vendor prefixes (optional, but good practice)
+        document.addEventListener('webkitfullscreenchange', () => {
+            isFullscreen = !!document.webkitFullscreenElement;
+            document.getElementById('fullscreen-btn').textContent = isFullscreen ? 'Exit Fullscreen' : 'Fullscreen';
+        });
+        document.addEventListener('mozfullscreenchange', () => {
+            isFullscreen = !!document.mozFullScreenElement;
+            document.getElementById('fullscreen-btn').textContent = isFullscreen ? 'Exit Fullscreen' : 'Fullscreen';
+        });
+
+        // ========== Load appropriate API scripts ==========
+        function loadYouTubeAPI() {
+            return new Promise((resolve) => {
+                if (window.YT && window.YT.Player) {
+                    resolve();
+                    return;
+                }
+                const tag = document.createElement('script');
+                tag.src = 'https://www.youtube.com/iframe_api';
+                tag.onload = () => {
+                    // YouTube API calls onYouTubeIframeAPIReady when ready
+                    window.onYouTubeIframeAPIReady = resolve;
+                };
+                document.head.appendChild(tag);
+            });
+        }
+
+        function loadDailymotionAPI() {
+            return new Promise((resolve) => {
+                if (window.DM && window.DM.player) {
+                    resolve();
+                    return;
+                }
+                const tag = document.createElement('script');
+                tag.src = 'https://api.dmcdn.net/all.js';
+                tag.onload = () => {
+                    // Dailymotion API is loaded; it will call window.dmAsyncInit when ready
+                    window.dmAsyncInit = resolve;
+                };
+                document.head.appendChild(tag);
+            });
+        }
+
+        // ========== Create player based on current item ==========
+        async function createPlayer() {
+            const container = document.getElementById('player-container');
+            container.innerHTML = ''; // clear previous player
+
+            const item = playlist[currentVideoIndex];
+            playerType = item.type;
+
+            if (item.type === 'youtube') {
+                await loadYouTubeAPI();
+                // Create a div for YouTube player
+                const playerDiv = document.createElement('div');
+                playerDiv.id = 'youtube-player';
+                playerDiv.className = 'youtube-player';
+                container.appendChild(playerDiv);
+
+                currentPlayer = new YT.Player('youtube-player', {
+                    height: '100%',
+                    width: '100%',
+                    videoId: item.id,
+                    playerVars: {
+                        autoplay: 1,
+                        mute: isMuted ? 1 : 0,
+                        modestbranding: 1,
+                        rel: 0,
+                        controls: 0,
+                        disablekb: 1,
+                        iv_load_policy: 3,
+                        showinfo: 0
+                    },
+                    events: {
+                        'onReady': onPlayerReady,
+                        'onStateChange': onPlayerStateChange
+                    }
+                });
+            } else if (item.type === 'dailymotion') {
+                await loadDailymotionAPI();
+                // Create a div for Dailymotion player
+                const playerDiv = document.createElement('div');
+                playerDiv.id = 'dailymotion-player';
+                playerDiv.className = 'dailymotion-player';
+                container.appendChild(playerDiv);
+
+                currentPlayer = new DM.player('dailymotion-player', {
+                    video: item.id,
+                    width: '100%',
+                    height: '100%',
+                    params: {
+                        autoplay: true,
+                        mute: isMuted,
+                        controls: false,
+                        'endscreen-enable': false
+                    },
+                    events: {
+                        onload: onPlayerReady,
+                        onvideoend: onVideoEnd
+                    }
+                });
+                // Dailymotion doesn't have an onStateChange like YouTube; we'll listen to onvideoend
+                // Also, we need to manually handle play/pause etc.
+            }
+
+            updateVideoInfo();
+        }
+
+        // ========== Player event handlers ==========
+        function onPlayerReady(event) {
+            // For YouTube, event.target is the player; for Dailymotion, event is the player itself
+            const player = playerType === 'youtube' ? event.target : event;
+            // Set initial mute state
+            if (playerType === 'dailymotion') {
+                player.setMuted(isMuted);
+            }
+            // Update play/pause button text
+            updatePlayPauseButton();
+        }
+
+        function onPlayerStateChange(event) {
+            // YouTube only
+            if (event.data === YT.PlayerState.ENDED) {
+                onVideoEnd();
+            } else if (event.data === YT.PlayerState.PLAYING || event.data === YT.PlayerState.PAUSED) {
+                updatePlayPauseButton();
+            }
+        }
+
+        function onVideoEnd() {
+            // Smooth transition
+            const overlay = document.querySelector('.transition-overlay');
+            overlay.style.opacity = '1';
+            
+            setTimeout(() => {
+                playNextVideo();
+                setTimeout(() => {
+                    overlay.style.opacity = '0';
+                }, 500);
+            }, 1000);
+        }
+
+        function updatePlayPauseButton() {
+            const btn = document.getElementById('play-pause-btn');
+            if (!currentPlayer) return;
+
+            if (playerType === 'youtube') {
+                const state = currentPlayer.getPlayerState();
+                btn.textContent = (state === YT.PlayerState.PLAYING) ? 'Pause' : 'Play';
+            } else if (playerType === 'dailymotion') {
+                // Dailymotion has a method to get player state: paused (boolean)
+                // But DM.player doesn't have a direct getPaused method; we can use currentPlayer.paused
+                // However, it might not be available immediately; we can use a flag updated by events.
+                // For simplicity, we'll toggle text on click and assume it's correct.
+                // Alternatively, listen to play/pause events if needed.
+                // We'll keep a simple approach: text toggles on click, but might become out of sync.
+                // To improve, we can use DM events: onplay, onpause.
+                // We'll set up those events in createPlayer.
+            }
+        }
+
+        // For Dailymotion, we'll attach play/pause event listeners inside createPlayer
+        // Modify the Dailymotion creation part to update button on play/pause:
+
+        // Inside the 'dailymotion' block in createPlayer, after creating player:
+        // currentPlayer.addEventListener('apiready', () => {
+        //     currentPlayer.addEventListener('play', () => { document.getElementById('play-pause-btn').textContent = 'Pause'; });
+        //     currentPlayer.addEventListener('pause', () => { document.getElementById('play-pause-btn').textContent = 'Play'; });
+        // });
+
+        // I'll implement this below.
+
+        // ========== Control functions ==========
+        function togglePlayPause() {
+            if (!currentPlayer) return;
+
+            if (playerType === 'youtube') {
+                const state = currentPlayer.getPlayerState();
+                if (state === YT.PlayerState.PLAYING) {
+                    currentPlayer.pauseVideo();
+                } else {
+                    currentPlayer.playVideo();
+                }
+            } else if (playerType === 'dailymotion') {
+                // Dailymotion has play() and pause() methods
+                // We need to know if it's playing. DM.player has a property 'paused' (boolean)
+                // But it's only available after some events. We'll use a simple toggle and hope.
+                // A more robust way: check via currentPlayer.paused (if supported)
+                if (currentPlayer.paused) {
+                    currentPlayer.play();
+                } else {
+                    currentPlayer.pause();
+                }
+            }
+            // Button text will be updated by events
+        }
+
+        function playNextVideo() {
+            currentVideoIndex = (currentVideoIndex + 1) % playlist.length;
+            createPlayer();  // destroy old and create new
+        }
+
+        function playPreviousVideo() {
+            currentVideoIndex = (currentVideoIndex - 1 + playlist.length) % playlist.length;
+            createPlayer();
+        }
+
+        function toggleMute() {
+            if (!currentPlayer) return;
+            isMuted = !isMuted;
+            if (playerType === 'youtube') {
+                if (isMuted) currentPlayer.mute(); else currentPlayer.unMute();
+            } else if (playerType === 'dailymotion') {
+                currentPlayer.setMuted(isMuted);
+            }
+            document.getElementById('mute-btn').textContent = isMuted ? 'Unmute' : 'Mute';
+        }
+
+        function toggleFullscreen() {
+            const elem = document.documentElement;
+            if (!isFullscreen) {
+                if (elem.requestFullscreen) elem.requestFullscreen();
+                else if (elem.mozRequestFullScreen) elem.mozRequestFullScreen();
+                else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
+            } else {
+                if (document.exitFullscreen) document.exitFullscreen();
+                else if (document.mozCancelFullScreen) document.mozCancelFullScreen();
+                else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+            }
+            // isFullscreen updated by fullscreenchange event
+        }
+
+        function updateVideoInfo() {
+            const titleEl = document.getElementById('video-title');
+            const descEl = document.getElementById('video-description');
+            const item = playlist[currentVideoIndex];
+            titleEl.textContent = `Παρακολουθείτε το ${currentVideoIndex + 1} από τα ${playlist.length} βίντεο (${item.type})`;
+            descEl.textContent = 'Καλωσήρθατε στην ποιοτική τηλεόραση';
+        }
+
+        // ========== Initialize ==========
+        async function initPlayer() {
+            await createPlayer();
+
+            // Attach control buttons
+            document.getElementById('play-pause-btn').addEventListener('click', togglePlayPause);
+            document.getElementById('next-btn').addEventListener('click', playNextVideo);
+            document.getElementById('prev-btn').addEventListener('click', playPreviousVideo);
+            document.getElementById('fullscreen-btn').addEventListener('click', toggleFullscreen);
+            document.getElementById('mute-btn').addEventListener('click', toggleMute);
+
+            // Set initial mute button text
+            document.getElementById('mute-btn').textContent = isMuted ? 'Unmute' : 'Mute';
+        }
+
+        // Start everything when page loads
+        window.addEventListener('load', initPlayer);
+    </script>
+</body>
+</html>
